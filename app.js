@@ -51,56 +51,32 @@ app.use(session({
   store: new FileStore()
 }));
 
+//before authentication we want users to be able to login 
+//so we put these 2 lines before adding auth middleware
+app.use('/', index);
+app.use('/users', users);
+
 function auth(req, res, next){
   console.log(req.session);
   //changed from checking cookie to checking sessoion
   if(!req.session.user) {
-    //get hold of authorization header from client side
-    var authHeader = req.headers.authorization; 
-    //if null
-    if (!authHeader) {
+    
       var err = new Error('You are not authenticated!');
       //settting header in response
-      res.setHeader('WWW-Authenticate', 'Basic');
-      err.status = 401;
+      err.status = 403;
       return next(err);
     }
-    //we are extracting the username and password 
-    //from our authentication header
-    //will get an array of two items - the username and password
-    var auth = new Buffer(authHeader.split(' ')[1], 'base64').toString().split(':');
-    var username = auth[0];
-    var password = auth[1];
-
-    //we can pass through the next middleware 
-    //if this node gets resolved
-    if (username === 'admin' && password === 'password') {
-      //if authenticated we will give them a signed cookie
-      //res.cookie('user','admin',{signed: true});
-
-      //changed from cookie to session 
-      req.session.user = 'admin';
-      next(); //authorized
-    }
-    else {
-      var err = new Error('You are not authenticated!');
-      //settting header in response
-      res.setHeader('WWW-Authenticate', 'Basic');
-      err.status = 401;
-      return next(err);
-    }
-  }
+    
   //now we are checking session not cookie
   else {
-    if (req.session.user === "admin") {
-      console.log('req.session: ',req.session);
+    if (req.session.user === "authenticated") {
       next();
     }
     //will normally not happen but for the sake of completeness 
     //we are adding this error check
     else {
       var err = new Error("You are not authenticated!");
-      err.status = 401;
+      err.status = 403;
       next(err);
     }
   }
@@ -115,8 +91,6 @@ app.use(auth);
 //enables us to serve public data from the static server
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/', index);
-app.use('/users', users);
 app.use('/dishes', dishRouter);
 app.use('/promotions', promoRouter);
 app.use('/leaders', leaderRouter);
