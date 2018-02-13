@@ -5,7 +5,7 @@ var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 
-
+//routes and endpoints
 var index = require('./routes/index');
 var users = require('./routes/users');
 var dishRouter = require('./routes/dishRouter');
@@ -36,7 +36,63 @@ app.set('view engine', 'jade');
 app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use(cookieParser());
+//supplying a signed cookie for encrypting information
+app.use(cookieParser('12345-67890-09876-54321'));
+
+function auth(req, res, next){
+  console.log(req.signedCookies);
+
+  //if user field  is null in the signed cookies we need to authenticate
+  if(!req.signedCookies.user) {
+    //get hold of authorization header from client side
+    var authHeader = req.headers.authorization; 
+    //if null
+    if (!authHeader) {
+      var err = new Error('You are not authenticated!');
+      //settting header in response
+      res.setHeader('WWW-Authenticate', 'Basic');
+      err.status = 401;
+      return next(err);
+    }
+    //we are extracting the username and password 
+    //from our authentication header
+    //will get an array of two items - the username and password
+    var auth = new Buffer(authHeader.split(' ')[1], 'base64').toString().split(':');
+    var username = auth[0];
+    var password = auth[1];
+
+    //we can pass through the next middleware 
+    //if this node gets resolved
+    if (username === 'admin' && password === 'password') {
+      next(); //authorized
+    }
+    else {
+      var err = new Error('You are not authenticated!');
+      //settting header in response
+      res.setHeader('WWW-Authenticate', 'Basic');
+      err.status = 401;
+      return next(err);
+    }
+  }
+  else {
+    if (req.signedCookies.user === "admin") {
+      next();
+    }
+    else {
+      var err = new Error("You are not authenticated!");
+      err.status = 401;
+      next(err);
+    }
+  }
+} 
+
+//authorization middleware
+app.use(auth);
+//!!IMPORTANT
+//everything after this will have to go through authorization 
+//in order for client to use
+
+//enables us to serve public data from the static server
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', index);
