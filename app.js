@@ -4,6 +4,10 @@ var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
+var session = require('express-session');
+//File store takes a session as a parameter
+var FileStore = require('session-file-store')(session);
+
 
 //routes and endpoints
 var index = require('./routes/index');
@@ -37,13 +41,20 @@ app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 //supplying a signed cookie for encrypting information
-app.use(cookieParser('12345-67890-09876-54321'));
+//app.use(cookieParser('12345-67890-09876-54321'));
+
+app.use(session({
+  name: 'session-id',
+  secret: '12345-67890-09876-54321',
+  saveUninitialized: false,
+  resave: false,
+  store: new FileStore()
+}));
 
 function auth(req, res, next){
-  console.log(req.signedCookies);
-
-  //if user field  is null in the signed cookies we need to authenticate
-  if(!req.signedCookies.user) {
+  console.log(req.session);
+  //changed from checking cookie to checking sessoion
+  if(!req.session.user) {
     //get hold of authorization header from client side
     var authHeader = req.headers.authorization; 
     //if null
@@ -64,6 +75,11 @@ function auth(req, res, next){
     //we can pass through the next middleware 
     //if this node gets resolved
     if (username === 'admin' && password === 'password') {
+      //if authenticated we will give them a signed cookie
+      //res.cookie('user','admin',{signed: true});
+
+      //changed from cookie to session 
+      req.session.user = 'admin';
       next(); //authorized
     }
     else {
@@ -74,10 +90,14 @@ function auth(req, res, next){
       return next(err);
     }
   }
+  //now we are checking session not cookie
   else {
-    if (req.signedCookies.user === "admin") {
+    if (req.session.user === "admin") {
+      console.log('req.session: ',req.session);
       next();
     }
+    //will normally not happen but for the sake of completeness 
+    //we are adding this error check
     else {
       var err = new Error("You are not authenticated!");
       err.status = 401;
