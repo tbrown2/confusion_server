@@ -7,7 +7,8 @@ var bodyParser = require('body-parser');
 var session = require('express-session');
 //File store takes a session as a parameter
 var FileStore = require('session-file-store')(session);
-
+var passport = require('passport');
+var authenticate = require('./authenticate');
 
 //routes and endpoints
 var index = require('./routes/index');
@@ -31,6 +32,18 @@ connect.then((db) => {
     console.log("Connected correctly to server");
 }, (err) => { console.log(err); });
 
+//redirect to secure server
+app.all("*", (req, res, next) =>{
+  if (req.secure) {
+    next();
+  }
+  else {
+    //307 is a returned status code
+    //307 means that the target resource is successfully  reached
+    res.redirect(307, 'https://' + req.hostname + ':' + app.get('secPort') + req.url);
+  }
+});
+
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
@@ -51,35 +64,29 @@ app.use(session({
   store: new FileStore()
 }));
 
+app.use(passport.initialize());
+app.use(passport.session());
+
+
 //before authentication we want users to be able to login 
 //so we put these 2 lines before adding auth middleware
 app.use('/', index);
 app.use('/users', users);
 
 function auth(req, res, next){
-  console.log(req.session);
+
   //changed from checking cookie to checking sessoion
-  if(!req.session.user) {
+  //changed from user to passport
+  if(!req.user) {
     
       var err = new Error('You are not authenticated!');
       //settting header in response
       err.status = 403;
       return next(err);
     }
-    
-  //now we are checking session not cookie
   else {
-    if (req.session.user === "authenticated") {
       next();
     }
-    //will normally not happen but for the sake of completeness 
-    //we are adding this error check
-    else {
-      var err = new Error("You are not authenticated!");
-      err.status = 403;
-      next(err);
-    }
-  }
 } 
 
 //authorization middleware
